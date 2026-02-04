@@ -2,8 +2,10 @@
 
 # Globals:
 $result = "Pass"
-$currentUser = whoami
-$defaultOutputOption = "Default" # Default output option only displays failed audits
+$defaultOutputOption = "Default"
+# Default output option only displays failed audits
+# Case insensitive
+# Options: "Default", "Silent", "Verbose"
 
 # Output Header
 function Write-Header {
