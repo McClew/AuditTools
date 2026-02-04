@@ -5,15 +5,18 @@ $result = "Pass"
 $currentUser = whoami
 $defaultOutputOption = "Default" # Default output option only displays failed audits
 
+# Output Header
+function Write-Header {
+    Write-Host "--- Cyber Essentials Audit Results ---" -ForegroundColor Blue
+}
+
 # Check Autoplay is Disabled
-#-----------------------------------------------------
 function Get-AutoplayStatus {
     param (
         [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
     )
 
     $autoplayResults = @()
-    $result = "Pass"
 
     # Check user configuration
     $userAutoplayStatus = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name "DisableAutoplay" -ErrorAction SilentlyContinue
@@ -39,30 +42,22 @@ function Get-AutoplayStatus {
         $result = "Fail"
     }
 
-    $autoplayResults += [PSCustomObject]@{ Audit = "Autoplay User Configuration"; Status = $userAutoplayOutput }
-    $autoplayResults += [PSCustomObject]@{ Audit = "Autoplay Machine Configuration"; Status = $machineAutoplayOutput }
+    $autoplayResults += [PSCustomObject]@{ Audit = "User Configuration"; Status = $userAutoplayOutput }
+    $autoplayResults += [PSCustomObject]@{ Audit = "Machine Configuration"; Status = $machineAutoplayOutput }
 
-    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
-        Write-Host "`nAutoplay Configuration:"
-        $autoplayResults | Format-Table -AutoSize
-    } elseif ($output.ToUpper() -eq "VERBOSE") {
-        Write-Host "`nAutoplay Configuration:"
-        $autoplayResults | Format-Table -AutoSize
-    }
+    Get-CheckResults -output $output -checkName "Autoplay Audit" -result $result -resultsTable $autoplayResults
 
     return $result
 }
 
 
 # Check Firewall is Enabled
-#-----------------------------------------------------
 function Get-FirewallStatus {
     param (
         [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
     )
 
     $firewallResults = @()
-    $result = "Pass"
 
     # Get list of firewall profiles
     $firewallProfiles = Get-NetFirewallProfile
@@ -76,27 +71,19 @@ function Get-FirewallStatus {
         }
     }
 
-    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
-        Write-Host "`nFirewall Configuration:"
-        $firewallResults | Format-Table -AutoSize
-    } elseif ($output.ToUpper() -eq "VERBOSE") {
-        Write-Host "`nFirewall Configuration:"
-        $firewallResults | Format-Table -AutoSize
-    }
+    Get-CheckResults -output $output -checkName "Firewall Status" -result $result -resultsTable $firewallResults
 
     return $result
 }
 
  
 # Check Password Policy (Min 8 characters required)
-#-----------------------------------------------------
 function Get-PasswordPolicy {
     param (
         [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
     )
     
     $passwordResults = @()
-    $result = "Pass"
 
     $localPasswordPolicyRawOutput = net accounts | Where-Object { $_ -match ":" }
 
@@ -116,92 +103,104 @@ function Get-PasswordPolicy {
         $domainPasswordPolicy[$name.Trim()] = $value.Trim()
     }
 
-    $passwordResults += [PSCustomObject]@{ Audit = "Local Password Policy Minimum Password Length"; Status = $localPasswordPolicy["Minimum password length"] }
-    $passwordResults += [PSCustomObject]@{ Audit = "Domain Password Policy Minimum Password Length"; Status = $domainPasswordPolicy["Minimum password length"] }
+    $passwordResults += [PSCustomObject]@{ Audit = "Local Policy Minimum Password Length"; Status = $localPasswordPolicy["Minimum password length"] }
+    $passwordResults += [PSCustomObject]@{ Audit = "Domain Policy Minimum Password Length"; Status = $domainPasswordPolicy["Minimum password length"] }
 
     # Failure check
     if ($localPasswordPolicy["Minimum password length"] -lt 8 -or $domainPasswordPolicy["Minimum password length"] -lt 8) {
         $result = "Fail"
     }
 
-    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
-        Write-Host "`nPassword Policy Configuration:"
-        $passwordResults | Format-Table -AutoSize
-    } elseif ($output.ToUpper() -eq "VERBOSE") {
-        Write-Host "`nPassword Policy Configuration:"
-        $passwordResults | Format-Table -AutoSize
-    }
+    Get-CheckResults -output $output -checkName "Password Policy Audit" -result $result -resultsTable $passwordResults
 
     return $result
 }
 
  
 # Check for Local Administrator Accounts
-#-----------------------------------------------------
 function Get-LocalAdminAccounts {
     param (
         [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
     )
 
     $adminResults = @()
-    $result = "Pass"
 
     $localAdmins = Get-LocalGroupMember -Group "Administrators" | Select-Object Name
-    $localAdminsOutput = $localAdmins.Name -join ", "
 
-    $adminResults += [PSCustomObject]@{ Audit = "Local Administrators"; Status = $localAdminsOutput }
+    for ($i = 0; $i -lt $localAdmins.Count; $i++) {
+        $adminResults += [PSCustomObject]@{ "Local Administrator Accounts" = $localAdmins[$i].Name }
+    }
 
-    if ($localAdminsOutput.ToUpper() -Contains $currentUser.ToUpper()) {
+    # Check if pass failed
+    if ($localAdmins.Count -gt 2) {
         $result = "Fail"
     }
 
-    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
-        Write-Host "`nLocal Administrator Accounts:"
-        $adminResults | Format-Table -AutoSize
-    } elseif ($output.ToUpper() -eq "VERBOSE") {
-        Write-Host "`nLocal Administrator Accounts:"
-        $adminResults | Format-Table -AutoSize
-    }
+    Get-CheckResults -output $output -checkName "Local Administrator Accounts Audit" -result $result -resultsTable $adminResults
 
     return $result
 }
  
 # Check for Antivirus
-#-----------------------------------------------------
 function Get-AntivirusStatus {
     param (
         [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
     )
     
     $antivirusResults = @()
-    $result = "Pass"
 
     $antivirusOutput = Get-MpComputerStatus
-    $antivirusResults += [PSCustomObject]@{ Audit = 'Windows Defender Enabled'; Status = $antivirusOutput.AMServiceEnabled }
-    $antivirusResults += [PSCustomObject]@{ Audit = 'Windows Defender Up to Date'; Status = ($antivirusOutput.AntispywareSignatureAge -lt 2) }
+    $antivirusResults += [PSCustomObject]@{ "Windows Defender" = 'Enabled'; Status = $antivirusOutput.AMServiceEnabled }
+    $antivirusResults += [PSCustomObject]@{ "Windows Defender" = 'Up to Date'; Status = ($antivirusOutput.AntispywareSignatureAge -lt 2) }
 
     if (-not $antivirusOutput.AMServiceEnabled -or $antivirusOutput.AntispywareSignatureAge -ge 2) {
         $result = "Fail"
     }
 
-    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
-        Write-Host "`nAntivirus Status:"
-        $antivirusResults | Format-Table -AutoSize
-    } elseif ($output.ToUpper() -eq "VERBOSE") {
-        Write-Host "`nAntivirus Status:"
-        $antivirusResults | Format-Table -AutoSize
-    }
+    Get-CheckResults -output $output -checkName "Antivirus Status Audit" -result $result -resultsTable $antivirusResults
 
     return $result
 }
 
+# Print Check Results
+function Get-CheckResults {
+    param (
+        [String]$output, # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [string]$checkName,
+        [String]$result,
+        [PSCustomObject]$resultsTable
+    )
+
+    if ($output.ToUpper() -eq "DEFAULT" -and $result -eq "Fail") {
+        Write-Host "`n$checkName : " -ForegroundColor Blue -NoNewline;
+        Write-Host "$result" -ForegroundColor Red
+        Write-Host ($resultsTable | Format-Table -AutoSize | Out-String)
+    } elseif ($output.ToUpper() -eq "VERBOSE") {
+        Write-Host "`n$checkName : " -ForegroundColor Blue -NoNewline;
+        Write-Host "$result" -ForegroundColor (if ($result -eq "Pass") { "Green" } else { "Red" })
+        Write-Host ($resultsTable | Format-Table -AutoSize | Out-String)
+    }
+}
+
+# Print Results
+function Get-AuditResult {
+    param (
+        [String]$result
+    )
+
+    Write-Host "`nAudit Result: " -ForegroundColor Blue -NoNewline;
+    if ($result -eq "Pass") {
+        Write-Host "PASS" -ForegroundColor Green
+    } else {
+        Write-Host "FAIL" -ForegroundColor Red
+    }
+}
  
-# Output Results
-#-----------------------------------------------------
-Write-Host "--- Cyber Essentials Audit Results ---"
+# Execution
+Write-Header
 $result = Get-AutoplayStatus -output $defaultOutputOption
 $result = Get-FirewallStatus -output $defaultOutputOption
 $result = Get-PasswordPolicy -output $defaultOutputOption
 $result = Get-LocalAdminAccounts -output $defaultOutputOption
 $result = Get-AntivirusStatus -output $defaultOutputOption
-Write-Host "`nAudit Result: $result"
+Get-AuditResult -result $result
