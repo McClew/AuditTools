@@ -2,10 +2,12 @@
 
 # Globals:
 $result = "Pass"
+$checkCount = 0
+$checkFails = 0
 $defaultOutputOption = "Default"
 # Default output option only displays failed audits
 # Case insensitive
-# Options: "Default", "Silent", "Verbose"
+# Options: "Default", "Simple", "Verbose"
 
 # Output Header
 function Write-Header {
@@ -15,10 +17,11 @@ function Write-Header {
 # Check Autoplay is Disabled
 function Get-AutoplayStatus {
     param (
-        [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
 
     $autoplayResults = @()
+    $faliureCheck = "Pass"
 
     # Check user configuration
     $userAutoplayStatus = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name "DisableAutoplay" -ErrorAction SilentlyContinue
@@ -30,36 +33,46 @@ function Get-AutoplayStatus {
     # value of 255 or 0xFF means autoplay is disabled for all drives
     # other values (145 or 0x91) mean autoplay is enabled for some drive types
 
+    # Determine outputs
     if ($userAutoplayStatus.DisableAutoplay -eq 0) {
         $userAutoplayOutput = "Disabled"
     } else {
         $userAutoplayOutput = "Enabled"
-        $result = "Fail"
+        $faliureCheck = "Fail"
     }
 
     if ($machineAutoplayStatus.NoDriveTypeAutoRun -eq 255) {
         $machineAutoplayOutput = "Disabled"
     } else {
         $machineAutoplayOutput = "Enabled (for some drive types)"
-        $result = "Fail"
+        $faliureCheck = "Fail"
     }
 
+    # Failure check
+    $checkCount++
+    if ($faliureCheck -eq "Fail") {
+        $result = "Fail"
+        $checkFails++
+    }
+
+    # Prepare results
     $autoplayResults += [PSCustomObject]@{ Audit = "User Configuration"; Status = $userAutoplayOutput }
     $autoplayResults += [PSCustomObject]@{ Audit = "Machine Configuration"; Status = $machineAutoplayOutput }
 
-    Get-CheckResults -output $output -checkName "Autoplay Audit" -result $result -resultsTable $autoplayResults
+    # Display results
+    Get-CheckResults -output $output -checkName "Autoplay Audit" -result $faliureCheck -resultsTable $autoplayResults
 
-    return $result
+    return $result, $checkCount, $checkFails
 }
-
 
 # Check Firewall is Enabled
 function Get-FirewallStatus {
     param (
-        [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
 
     $firewallResults = @()
+    $faliureCheck = "Pass"
 
     # Get list of firewall profiles
     $firewallProfiles = Get-NetFirewallProfile
@@ -69,24 +82,33 @@ function Get-FirewallStatus {
         $firewallResults += [PSCustomObject]@{ Audit = "Firewall Profile: $($firewallProfiles[$i].Name)"; Status = $firewallProfiles[$i].Enabled }
 
         if ($firewallProfiles[$i].Enabled -eq $false) {
-            $result = "Fail"
+            $faliureCheck = "Fail"
         }
     }
 
-    Get-CheckResults -output $output -checkName "Firewall Status" -result $result -resultsTable $firewallResults
+    # Failure check
+    $checkCount++
+    if ($faliureCheck -eq "Fail") {
+        $result = "Fail"
+        $checkFails++
+    }
 
-    return $result
+    # Display results
+    Get-CheckResults -output $output -checkName "Firewall Status" -result $faliureCheck -resultsTable $firewallResults
+
+    return $result, $checkCount, $checkFails
 }
 
- 
 # Check Password Policy (Min 8 characters required)
 function Get-PasswordPolicy {
     param (
-        [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
     
     $passwordResults = @()
+    $faliureCheck = "Pass"
 
+    # Parse local password policy
     $localPasswordPolicyRawOutput = net accounts | Where-Object { $_ -match ":" }
 
     $localPasswordPolicy = @{}
@@ -96,6 +118,7 @@ function Get-PasswordPolicy {
         $localPasswordPolicy[$name.Trim()] = $value.Trim()
     }
 
+    # Parse domain password policy
     $domainPasswordPolicyRawOutput = net accounts /domain | Where-Object { $_ -match ":" }
 
     $domainPasswordPolicy = @{}
@@ -105,28 +128,34 @@ function Get-PasswordPolicy {
         $domainPasswordPolicy[$name.Trim()] = $value.Trim()
     }
 
+    # Prepare results
     $passwordResults += [PSCustomObject]@{ Audit = "Local Policy Minimum Password Length"; Status = $localPasswordPolicy["Minimum password length"] }
     $passwordResults += [PSCustomObject]@{ Audit = "Domain Policy Minimum Password Length"; Status = $domainPasswordPolicy["Minimum password length"] }
 
     # Failure check
+    $checkCount++
     if ($localPasswordPolicy["Minimum password length"] -lt 8 -or $domainPasswordPolicy["Minimum password length"] -lt 8) {
+        $faliureCheck = "Fail"
         $result = "Fail"
+        $checkFails++
     }
 
-    Get-CheckResults -output $output -checkName "Password Policy Audit" -result $result -resultsTable $passwordResults
+    # Display results
+    Get-CheckResults -output $output -checkName "Password Policy Audit" -result $faliureCheck -resultsTable $passwordResults
 
-    return $result
+    return $result, $checkCount, $checkFails
 }
 
- 
 # Check for Local Administrator Accounts
 function Get-LocalAdminAccounts {
     param (
-        [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
 
     $adminResults = @()
+    $failureCheck = "Pass"
 
+    # Get local administrator accounts
     $localAdmins = Get-LocalGroupMember -Group "Administrators" | Select-Object Name
 
     for ($i = 0; $i -lt $localAdmins.Count; $i++) {
@@ -134,40 +163,51 @@ function Get-LocalAdminAccounts {
     }
 
     # Check if pass failed
+    $checkCount++
     if ($localAdmins.Count -gt 2) {
+        $failureCheck = "Fail"
         $result = "Fail"
+        $checkFails++
     }
 
-    Get-CheckResults -output $output -checkName "Local Administrator Accounts Audit" -result $result -resultsTable $adminResults
+    # Display results
+    Get-CheckResults -output $output -checkName "Local Administrator Accounts Audit" -result $failureCheck -resultsTable $adminResults
 
-    return $result
+    return $result, $checkCount, $checkFails
 }
  
 # Check for Antivirus
 function Get-AntivirusStatus {
     param (
-        [String]$output # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
     
     $antivirusResults = @()
+    $failureCheck = "Pass"
 
+    # Check Windows Defender status
     $antivirusOutput = Get-MpComputerStatus
     $antivirusResults += [PSCustomObject]@{ "Windows Defender" = 'Enabled'; Status = $antivirusOutput.AMServiceEnabled }
     $antivirusResults += [PSCustomObject]@{ "Windows Defender" = 'Up to Date'; Status = ($antivirusOutput.AntispywareSignatureAge -lt 2) }
 
+    # Failure check
+    $checkCount++
     if (-not $antivirusOutput.AMServiceEnabled -or $antivirusOutput.AntispywareSignatureAge -ge 2) {
+        $failureCheck = "Fail"
         $result = "Fail"
+        $checkFails++
     }
 
-    Get-CheckResults -output $output -checkName "Antivirus Status Audit" -result $result -resultsTable $antivirusResults
+    # Display results
+    Get-CheckResults -output $output -checkName "Antivirus Status Audit" -result $failureCheck -resultsTable $antivirusResults
 
-    return $result
+    return $result, $checkCount, $checkFails
 }
 
 # Print Check Results
 function Get-CheckResults {
     param (
-        [String]$output, # Options: "DEFAULT", "SILENT", "VERBOSE"
+        [String]$output, # Options: "DEFAULT", "SIMPLE", "VERBOSE"
         [string]$checkName,
         [String]$result,
         [PSCustomObject]$resultsTable
@@ -187,7 +227,8 @@ function Get-CheckResults {
 # Print Results
 function Get-AuditResult {
     param (
-        [String]$result
+        [String]$result,
+        [String]$output # Options: "DEFAULT", "SIMPLE", "VERBOSE"
     )
 
     Write-Host "`nAudit Result: " -ForegroundColor Blue -NoNewline;
@@ -196,13 +237,19 @@ function Get-AuditResult {
     } else {
         Write-Host "FAIL" -ForegroundColor Red
     }
+
+    if ($result -eq "Fail") {
+        Write-Host "$checkFails out of $checkCount checks failed." -ForegroundColor Red
+    } else {
+        Write-Host "All $checkCount checks passed." -ForegroundColor Green
+    }
 }
  
 # Execution
 Write-Header
-$result = Get-AutoplayStatus -output $defaultOutputOption
-$result = Get-FirewallStatus -output $defaultOutputOption
-$result = Get-PasswordPolicy -output $defaultOutputOption
-$result = Get-LocalAdminAccounts -output $defaultOutputOption
-$result = Get-AntivirusStatus -output $defaultOutputOption
-Get-AuditResult -result $result
+$result, $checkCount, $checkFails = Get-AutoplayStatus -output $defaultOutputOption
+$result, $checkCount, $checkFails = Get-FirewallStatus -output $defaultOutputOption
+$result, $checkCount, $checkFails = Get-PasswordPolicy -output $defaultOutputOption
+$result, $checkCount, $checkFails = Get-LocalAdminAccounts -output $defaultOutputOption
+$result, $checkCount, $checkFails = Get-AntivirusStatus -output $defaultOutputOption
+Get-AuditResult -result $result -output $defaultOutputOption
