@@ -10,7 +10,8 @@ for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
     } else {
         if ($firewallProfiles[$i].Enabled -eq $false) {
             # Alert the user about the current status of the profile
-            Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) is DISABLED" -ForegroundColor Red
+            Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) is " -NoNewline;
+            Write-Host "Disabled" -ForegroundColor Red
             Write-Host "Enabling Firewall Profile: $($firewallProfiles[$i].Name)" -ForegroundColor Yellow
 
             # Enable the firewall profile
@@ -19,12 +20,14 @@ for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
             # Confirm the change
             $updatedProfile = Get-NetFirewallProfile -Name $firewallProfiles[$i].Name
             if ($updatedProfile.Enabled -eq $true) {
-                Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) has been ENABLED" -ForegroundColor Green
+                Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) has been " -NoNewline; 
+                Write-Host "Enabled" -ForegroundColor Green
             } else {
                 Write-Host "Failed to enable Firewall Profile: $($firewallProfiles[$i].Name)" -ForegroundColor Red
             }
         } else {
-            Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) is already ENABLED" -ForegroundColor Green
+            Write-Host "Firewall Profile: $($firewallProfiles[$i].Name) is already " -NoNewline;
+            Write-Host "Enabled" -ForegroundColor Green
         }
     }
 }
