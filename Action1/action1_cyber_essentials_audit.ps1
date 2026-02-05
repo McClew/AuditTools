@@ -1,9 +1,10 @@
 # Cyber Essentials Basic Audit Script
+$lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID = Get-LastUserDetails
 
 # Check Autoplay is Disabled
 function Get-AutoplayStatus {
     # Check user configuration
-    $userAutoplayStatus = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name "DisableAutoplay" -ErrorAction SilentlyContinue
+    $userAutoplayStatus = Get-ItemProperty "Registry::HKEY_USERS\$lastUserSID\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name DisableAutoplay -ErrorAction SilentlyContinue
     # value of 1 means autoplay is disabled
     # value of 0 or missing means autoplay is enabled
 
@@ -140,6 +141,16 @@ function Send-Action1Data {
 
     # Pipeline the output object for processing
     Write-Output $output
+}
+
+# Get details of the last logged in user
+function Get-LastUserDetails {
+    $lastUserSID = Get-CimInstance -Class Win32_UserProfile -Filter "Special = False" | Sort-Object LastUseTime -Descending | Select-Object -First 1 | Select-Object -ExpandProperty SID
+    $lastUserDomain = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Domain
+    $lastUserName = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Name
+    $lastUserCaption = "$lastUserDomain\$lastUserName"
+
+    return $lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID
 }
 
 # Execution
