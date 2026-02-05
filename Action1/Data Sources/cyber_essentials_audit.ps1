@@ -185,7 +185,8 @@ function Get-AntivirusStatus {
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefenderEnabled"
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
 
-    return if ($defenderEnabledCheckResult -eq "Pass" -and $defenderUpdatedCheckResult -eq "Pass") { "Pass" } else { "Fail" }
+    $overallCheckResult = if ($defenderEnabledCheckResult -eq "Pass" -and $defenderUpdatedCheckResult -eq "Pass") { "Pass" } else { "Fail" }
+    return $overallCheckResult
 }
 
 # Action1 Data Source Integration
