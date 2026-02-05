@@ -249,11 +249,12 @@ function Get-AuditResult {
     }
 }
 
+# Get details of the last logged in user
 function Get-LastUserDetails {
-    $lastUserCaption = Get-CimInstance -Class Win32_ComputerSystem | Select-Object -ExpandProperty UserName
-    $lastUserName = $lastUserCaption.Split('\')[-1]
-    $lastUserDomain = $lastUserCaption.Split('\')[0]
-    $lastUserSID = Get-CimInstance -Class Win32_UserAccount | Where-Object Caption -like "*$lastuserName" | Select-Object -ExpandProperty SID
+    $lastUserSID = Get-CimInstance -Class Win32_UserProfile -Filter "Special = False" | Sort-Object LastUseTime -Descending | Select-Object -First 1 | Select-Object -ExpandProperty SID
+    $lastUserDomain = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Domain
+    $lastUserName = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Name
+    $lastUserCaption = "$lastUserDomain\$lastUserName"
 
     return $lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID
 }
