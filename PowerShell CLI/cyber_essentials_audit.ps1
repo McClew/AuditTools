@@ -8,6 +8,7 @@ $defaultOutputOption = "Default"
 # Default output option only displays failed audits
 # Case insensitive
 # Options: "Default", "Simple", "Verbose"
+$lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID = Get-LastUserDetails
 
 # Output Header
 function Write-Header {
@@ -24,7 +25,7 @@ function Get-AutoplayStatus {
     $faliureCheck = "Pass"
 
     # Check user configuration
-    $userAutoplayStatus = Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name "DisableAutoplay" -ErrorAction SilentlyContinue
+    $userAutoplayStatus = Get-ItemProperty "Registry::HKEY_USERS\$lastUserSID\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers" -Name DisableAutoplay -ErrorAction SilentlyContinue
     # value of 1 means autoplay is disabled
     # value of 0 or missing means autoplay is enabled
 
@@ -160,12 +161,15 @@ function Get-LocalAdminAccounts {
 
     for ($i = 0; $i -lt $localAdmins.Count; $i++) {
         $adminResults += [PSCustomObject]@{ "Local Administrator Accounts" = $localAdmins[$i].Name }
+
+        if ($localAdmins[$i].Name -eq $lastUserCaption) {
+            $failureCheck = "Fail"
+        }
     }
 
     # Check if pass failed
     $checkCount++
-    if ($localAdmins.Count -gt 2) {
-        $failureCheck = "Fail"
+    if ($failureCheck -eq "Fail") {
         $result = "Fail"
         $checkFails++
     }
@@ -244,7 +248,16 @@ function Get-AuditResult {
         Write-Host "All $checkCount checks passed." -ForegroundColor Green
     }
 }
- 
+
+function Get-LastUserDetails {
+    $lastUserCaption = Get-CimInstance -Class Win32_ComputerSystem | Select-Object -ExpandProperty UserName
+    $lastUserName = $lastUserCaption.Split('\')[-1]
+    $lastUserDomain = $lastUserCaption.Split('\')[0]
+    $lastUserSID = Get-CimInstance -Class Win32_UserAccount | Where-Object Caption -like "*$lastuserName" | Select-Object -ExpandProperty SID
+
+    return $lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID
+}
+
 # Execution
 Write-Header
 $result, $checkCount, $checkFails = Get-AutoplayStatus -output $defaultOutputOption
