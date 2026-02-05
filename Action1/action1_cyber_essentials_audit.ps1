@@ -1,5 +1,4 @@
 # Cyber Essentials Basic Audit Script
-$lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID = Get-LastUserDetails
 
 # Check Autoplay is Disabled
 function Get-AutoplayStatus {
@@ -183,6 +182,8 @@ function Get-LastUserDetails {
 }
 
 # Execution
+$lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID = Get-LastUserDetails
+
 Get-AutoplayStatus
 Get-FirewallStatus
 Get-PasswordPolicy
