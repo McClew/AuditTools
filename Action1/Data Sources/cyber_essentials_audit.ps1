@@ -151,6 +151,10 @@ function Get-LocalAdminAccounts {
 
     # Send results
     Send-Action1Data -auditName "Local Administrator Accounts Audit" -checkName "Local Administrators" -checkResult $checkResult -resultDetails $adminAccounts -UID "LocalAdminAccountsAudit-AdminsList"
+
+    if ($checkResult -ne "Pass") {
+        Write-Warning "Local administrator accounts were found. Please review the result details for more information."
+    }
 }
 
 # Check for Antivirus
