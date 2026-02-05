@@ -32,6 +32,10 @@ function Get-AutoplayStatus {
     # Send results
     Send-Action1Data -auditName "Autoplay Audit" -checkName "User Configuration" -checkResult $userAutoplayCheckResult -resultDetails $userAutoplayOutput -UID "AutoplayAudit-UserConfiguration" 
     Send-Action1Data -auditName "Autoplay Audit" -checkName "Machine Configuration" -checkResult $machineAutoplayCheckResult -resultDetails $machineAutoplayOutput -UID "AutoplayAudit-MachineConfiguration"
+
+    $autoplayStatus = if ($userAutoplayCheckResult -eq "Pass" -and $machineAutoplayCheckResult -eq "Pass") { "Pass" } else { "Fail" }
+
+    return $autoplayStatus
 }
 
 # Check Firewall is Enabled
@@ -62,10 +66,12 @@ function Get-FirewallStatus {
         # Send result
         Send-Action1Data -auditName "Firewall Audit" -checkName "ESET Firewall" -checkResult "Pass" -resultDetails "ESET Firewall is active" -UID "FirewallAudit-ESET"
 
-        return # If ESET Firewall is active skip Defender check
+        return "Pass" # If ESET Firewall is active skip Defender check
     } else {
         # Get list of firewall profiles
         $firewallProfiles = Get-NetFirewallProfile
+
+        $overallCheckResult = if ($firewallProfiles | Where-Object { $_.Enabled }) { "Pass" } else { "Fail" }
 
         # Loop through each profile and check if enabled
         for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
@@ -76,6 +82,8 @@ function Get-FirewallStatus {
             # Send result
             Send-Action1Data -auditName "Firewall Audit" -checkName "Firewall Profile: $($firewallProfiles[$i].Name)" -checkResult $checkResult -resultDetails $status -UID "FirewallAudit-$($firewallProfiles[$i].Name)"
         }
+
+        return $overallCheckResult
     }
 }
 
@@ -117,6 +125,10 @@ function Get-PasswordPolicy {
 
         Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails "Not Domain Joined" -UID "PasswordPolicyAudit-Domain-MimimumLength"
     }
+
+    $overallCheckResult = if ($localCheckResult -eq "Pass" -and $domainCheckResult -ne "Fail") { "Pass" } elseif ($localCheckResult -eq "Fail" -or $domainCheckResult -eq "Fail") { "Fail" } else { "Info" }
+
+    return $overallCheckResult
 }
 
 # Check for Local Administrator Accounts
@@ -155,6 +167,8 @@ function Get-LocalAdminAccounts {
     if ($checkResult -ne "Pass") {
         Write-Warning "Local administrator accounts were found. Please review the result details for more information."
     }
+
+    return $checkResult
 }
 
 # Check for Antivirus
@@ -170,6 +184,8 @@ function Get-AntivirusStatus {
     # Send results
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefenderEnabled"
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
+
+    return if ($defenderEnabledCheckResult -eq "Pass" -and $defenderUpdatedCheckResult -eq "Pass") { "Pass" } else { "Fail" }
 }
 
 # Action1 Data Source Integration
@@ -209,11 +225,29 @@ function Get-LastUserDetails {
     return $lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID
 }
 
+# Get overview of checks
+function Get-Overview {
+    param (
+        [string]$autoplayStatus,
+        [string]$firewallStatus,
+        [string]$passwordPolicyStatus,
+        [string]$localAdminAccountsStatus,
+        [string]$antivirusStatus
+    )
+
+    Send-Action1Data -auditName "Overview" -checkName "Autoplay Audit" -checkResult $autoplayStatus -resultDetails "Autoplay status retrieved" -UID "AutoplayAudit-UserConfiguration"
+    Send-Action1Data -auditName "Overview" -checkName "Firewall Status" -checkResult $firewallStatus -resultDetails "Firewall status retrieved" -UID "FirewallAudit-Status"
+    Send-Action1Data -auditName "Overview" -checkName "Password Policy Status" -checkResult $passwordPolicyStatus -resultDetails "Password policy status retrieved" -UID "PasswordPolicyAudit-Status"
+    Send-Action1Data -auditName "Overview" -checkName "Local Admin Accounts Status" -checkResult $localAdminAccountsStatus -resultDetails "Local admin accounts status retrieved" -UID "LocalAdminAccountsAudit-Status"
+    Send-Action1Data -auditName "Overview" -checkName "Antivirus Status" -checkResult $antivirusStatus -resultDetails "Antivirus status retrieved" -UID "AntivirusAudit-Status"
+}
+
 # Execution
 $lastUserCaption, $lastUserName, $lastUserDomain, $lastUserSID = Get-LastUserDetails
 
-Get-AutoplayStatus
-Get-FirewallStatus
-Get-PasswordPolicy
-Get-LocalAdminAccounts
-Get-AntivirusStatus
+$autoplayStatus = Get-AutoplayStatus
+$firewallStatus = Get-FirewallStatus
+$passwordPolicyStatus = Get-PasswordPolicy
+$localAdminAccountsStatus = Get-LocalAdminAccounts
+$antivirusStatus = Get-AntivirusStatus
+Get-Overview -autoplayStatus $autoplayStatus -firewallStatus $firewallStatus -passwordPolicyStatus $passwordPolicyStatus -localAdminAccountsStatus $localAdminAccountsStatus -antivirusStatus $antivirusStatus
