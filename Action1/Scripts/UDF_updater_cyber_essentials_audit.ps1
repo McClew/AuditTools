@@ -14,28 +14,20 @@ function Get-AutoplayStatus {
 
     # Determine outputs
     if ($userAutoplayStatus.DisableAutoplay -eq 0) {
-        $userAutoplayOutput = "Disabled"
         $userAutoplayCheckResult = "Pass"
     } else {
-        $userAutoplayOutput = "Enabled"
         $userAutoplayCheckResult = "Fail"
     }
 
     if ($machineAutoplayStatus.NoDriveTypeAutoRun -eq 255) {
-        $machineAutoplayOutput = "Disabled"
         $machineAutoplayCheckResult = "Pass"
     } else {
-        $machineAutoplayOutput = "Enabled (for some drive types)"
         $machineAutoplayCheckResult = "Fail"
     }
 
     # Apply findings to Action1 UDF
     $overallCheckResult = if ($userAutoplayCheckResult -eq "Pass" -and $machineAutoplayCheckResult -eq "Pass") { "Pass" } else { "Fail" }
     Action1-Set-CustomAttribute "Autoplay" $overallCheckResult;
-
-    # Send results
-    Send-Action1Data -auditName "Autoplay Audit" -checkName "User Configuration" -checkResult $userAutoplayCheckResult -resultDetails $userAutoplayOutput -UID "AutoplayAudit-UserConfiguration" 
-    Send-Action1Data -auditName "Autoplay Audit" -checkName "Machine Configuration" -checkResult $machineAutoplayCheckResult -resultDetails $machineAutoplayOutput -UID "AutoplayAudit-MachineConfiguration"
 }
 
 # Check Firewall is Enabled
