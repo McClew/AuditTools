@@ -31,3 +31,6 @@ for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
         }
     }
 }
+
+# Apply to Action1 UDF
+Action1-Set-CustomAttribute "Firewall" "Pass";

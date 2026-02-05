@@ -50,3 +50,6 @@ if ($null -eq $machineStatus -or $machineStatus.NoDriveTypeAutoRun -ne 255) {
     Write-Host "Autoplay is already " -NoNewline;
     Write-Host "Disabled" -ForegroundColor Green -NoNewline;
 }
+
+# Apply to Action1 UDF
+Action1-Set-CustomAttribute "Autoplay" "Pass";

@@ -14,3 +14,6 @@ if (Test-Path $ecmd) {
 } else {
     Write-Error "ESET command-line tool not found at $ecmd"
 }
+
+# Apply to Action1 UDF
+Action1-Set-CustomAttribute "Firewall" "Pass";
