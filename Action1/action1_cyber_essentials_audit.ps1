@@ -37,17 +37,41 @@ function Get-AutoplayStatus {
 
 # Check Firewall is Enabled
 function Get-FirewallStatus {
-    # Get list of firewall profiles
-    $firewallProfiles = Get-NetFirewallProfile
+    ## Check for ESET Firewall
+    $esetProducts = Get-CimInstance -Namespace "root\SecurityCenter2" -ClassName "FirewallProduct" | Where-Object { $_.displayName -like "*ESET*" }
+    $esetEnabled = $false
 
-    # Loop through each profile and check if enabled
-    for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
-        # Prepare result
-        $status = if ($firewallProfiles[$i].Enabled) { "Enabled" } else { "Disabled" }
-        $checkResult = if ($firewallProfiles[$i].Enabled) { "Pass" } else { "Fail" }
+    if ($esetProducts) {
+        # Check if any ESET entries are active
+        foreach ($product in $esetProducts) {
+            $stateHex = "0x{0:x}" -f $product.productState
 
+            # In WMI SecurityCenter2, the 3rd byte '10' or '11' indicates 'Enabled'
+            if ($stateHex -like "*10??" -or $stateHex -like "*11??") {
+                $esetEnabled = $true
+                break
+            }
+        }
+    }
+
+    if ($esetEnabled) {
         # Send result
-        Send-Action1Data -auditName "Firewall Audit" -checkName "Firewall Profile: $($firewallProfiles[$i].Name)" -checkResult $checkResult -resultDetails $status -UID "FirewallAudit-$($firewallProfiles[$i].Name)"
+        Send-Action1Data -auditName "Firewall Audit" -checkName "ESET Firewall" -checkResult "Pass" -resultDetails "ESET Firewall is active" -UID "FirewallAudit-ESET"
+
+        return # If ESET Firewall is active skip Defender check
+    } else {
+        # Get list of firewall profiles
+        $firewallProfiles = Get-NetFirewallProfile
+
+        # Loop through each profile and check if enabled
+        for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
+            # Prepare result
+            $status = if ($firewallProfiles[$i].Enabled) { "Enabled" } else { "Disabled" }
+            $checkResult = if ($firewallProfiles[$i].Enabled) { "Pass" } else { "Fail" }
+
+            # Send result
+            Send-Action1Data -auditName "Firewall Audit" -checkName "Firewall Profile: $($firewallProfiles[$i].Name)" -checkResult $checkResult -resultDetails $status -UID "FirewallAudit-$($firewallProfiles[$i].Name)"
+        }
     }
 }
 
@@ -110,7 +134,7 @@ function Get-AntivirusStatus {
 
     $defenderEnabledCheckResult = if ($antivirusOutput.AMServiceEnabled) { "Pass" } else { "Fail" }
     $defenderUpdatedCheckResult = if ($updated -eq "True") { "Pass" } else { "Fail" }
-
+    
     # Send results
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefenderEnabled"
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
