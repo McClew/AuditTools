@@ -36,6 +36,8 @@ function Get-AutoplayStatus {
 }
 
 # Check Firewall is Enabled
+# - ESET Firewall
+# - Defender Firewall
 function Get-FirewallStatus {
     ## Check for ESET Firewall
     $esetProducts = Get-CimInstance -Namespace "root\SecurityCenter2" -ClassName "FirewallProduct" | Where-Object { $_.displayName -like "*ESET*" }
