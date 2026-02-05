@@ -29,6 +29,10 @@ function Get-AutoplayStatus {
         $machineAutoplayCheckResult = "Fail"
     }
 
+    # Apply findings to Action1 UDF
+    $overallCheckResult = if ($userAutoplayCheckResult -eq "Pass" -and $machineAutoplayCheckResult -eq "Pass") { "Pass" } else { "Fail" }
+    Action1-Set-CustomAttribute "Autoplay" $overallCheckResult;
+
     # Send results
     Send-Action1Data -auditName "Autoplay Audit" -checkName "User Configuration" -checkResult $userAutoplayCheckResult -resultDetails $userAutoplayOutput -UID "AutoplayAudit-UserConfiguration" 
     Send-Action1Data -auditName "Autoplay Audit" -checkName "Machine Configuration" -checkResult $machineAutoplayCheckResult -resultDetails $machineAutoplayOutput -UID "AutoplayAudit-MachineConfiguration"
@@ -59,6 +63,10 @@ function Get-FirewallStatus {
     }
 
     if ($esetEnabled) {
+        # Apply findings to Action1 UDF
+        $overallCheckResult = "Pass"
+        Action1-Set-CustomAttribute "Firewall" $overallCheckResult;
+
         # Send result
         Send-Action1Data -auditName "Firewall Audit" -checkName "ESET Firewall" -checkResult "Pass" -resultDetails "ESET Firewall is active" -UID "FirewallAudit-ESET"
 
@@ -67,15 +75,25 @@ function Get-FirewallStatus {
         # Get list of firewall profiles
         $firewallProfiles = Get-NetFirewallProfile
 
+        # Overall check result
+        $overallCheckResult = "Pass"
+
         # Loop through each profile and check if enabled
         for ($i = 0; $i -lt $firewallProfiles.Count; $i++) {
             # Prepare result
             $status = if ($firewallProfiles[$i].Enabled) { "Enabled" } else { "Disabled" }
             $checkResult = if ($firewallProfiles[$i].Enabled) { "Pass" } else { "Fail" }
 
+            if ($checkResult -eq "Fail") {
+                $overallCheckResult = "Fail"
+            }
+
             # Send result
             Send-Action1Data -auditName "Firewall Audit" -checkName "Firewall Profile: $($firewallProfiles[$i].Name)" -checkResult $checkResult -resultDetails $status -UID "FirewallAudit-$($firewallProfiles[$i].Name)"
         }
+
+        # Apply findings to Action1 UDF
+        Action1-Set-CustomAttribute "Firewall" $overallCheckResult;
     }
 }
 
@@ -93,6 +111,7 @@ function Get-PasswordPolicy {
 
     $localCheckResult = if ($localPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
 
+    # Send results
     Send-Action1Data -auditName "Local Password Policy Audit" -checkName "Minimum Password Length" -checkResult $localCheckResult -resultDetails $localPasswordPolicy["Minimum password length"] -UID "PasswordPolicyAudit-Local-MimimumLength"
 
     # Check if Domain Joined before running Domain Audit
@@ -111,10 +130,18 @@ function Get-PasswordPolicy {
 
         $domainCheckResult = if ($domainPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
 
+        # Apply findings to Action1 UDF
+        Action1-Set-CustomAttribute "Password Policy" (if($localCheckResult -eq "Pass" -and $domainCheckResult -eq "Pass") { "Pass" } else { "Fail" });
+
+        # Send results
         Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails $domainPasswordPolicy["Minimum password length"] -UID "PasswordPolicyAudit-Domain-MimimumLength"
     } else {
         $domainCheckResult = "Info"
 
+        # Apply findings to Action1 UDF
+        Action1-Set-CustomAttribute "Password Policy" $localCheckResult;
+
+        # Send results
         Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails "Not Domain Joined" -UID "PasswordPolicyAudit-Domain-MimimumLength"
     }
 }
@@ -149,6 +176,9 @@ function Get-LocalAdminAccounts {
         $adminAccounts = "Error retrieving admin list: $($_.Exception.Message)"
     }
 
+    # Apply findings to Action1 UDF
+    Action1-Set-CustomAttribute "Local Administrators" (if($checkResult -eq "Pass") { "Pass" } else { "Fail" });
+
     # Send results
     Send-Action1Data -auditName "Local Administrator Accounts Audit" -checkName "Local Administrators" -checkResult $checkResult -resultDetails $adminAccounts -UID "LocalAdminAccountsAudit-AdminsList"
 }
@@ -163,6 +193,9 @@ function Get-AntivirusStatus {
     $defenderEnabledCheckResult = if ($antivirusOutput.AMServiceEnabled) { "Pass" } else { "Fail" }
     $defenderUpdatedCheckResult = if ($updated -eq "True") { "Pass" } else { "Fail" }
     
+    # Apply findings to Action1 UDF
+    Action1-Set-CustomAttribute "Anti-Malware" (if($defenderEnabledCheckResult -eq "Pass" -and $defenderUpdatedCheckResult -eq "Pass") { "Pass" } else { "Fail" });
+
     # Send results
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefenderEnabled"
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
