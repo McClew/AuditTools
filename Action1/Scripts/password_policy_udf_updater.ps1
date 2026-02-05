@@ -26,11 +26,13 @@ if ($sysInfo.PartOfDomain) {
 
     $domainCheckResult = if ($domainPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
 
+    $overallCheckResult = if($localCheckResult -eq "Pass" -and $domainCheckResult -eq "Pass") { "Pass" } else { "Fail" }
+
     # Apply findings to Action1 UDF
-    Action1-Set-CustomAttribute "Password Policy" (if($localCheckResult -eq "Pass" -and $domainCheckResult -eq "Pass") { "Pass" } else { "Fail" });
+    Action1-Set-CustomAttribute "Password Policy" "$overallCheckResult";
 } else {
     $domainCheckResult = "Info"
 
     # Apply findings to Action1 UDF
-    Action1-Set-CustomAttribute "Password Policy" $localCheckResult;
+    Action1-Set-CustomAttribute "Password Policy" "$localCheckResult";
 }
