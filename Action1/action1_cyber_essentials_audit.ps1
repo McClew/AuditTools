@@ -91,42 +91,66 @@ function Get-PasswordPolicy {
         $localPasswordPolicy[$name.Trim()] = $value.Trim()
     }
 
-    # Parse domain password policy
-    $domainPasswordPolicyRawOutput = net accounts /domain | Where-Object { $_ -match ":" }
-
-    $domainPasswordPolicy = @{}
-    foreach ($line in $domainPasswordPolicyRawOutput) {
-        # Split by the colon and trim whitespace
-        $name, $value = $line -split ':', 2
-        $domainPasswordPolicy[$name.Trim()] = $value.Trim()
-    }
-
     $localCheckResult = if ($localPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
-    $domainCheckResult = if ($domainPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
 
-    # Send results
     Send-Action1Data -auditName "Local Password Policy Audit" -checkName "Minimum Password Length" -checkResult $localCheckResult -resultDetails $localPasswordPolicy["Minimum password length"] -UID "PasswordPolicyAudit-Local-MimimumLength"
-    Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails $domainPasswordPolicy["Minimum password length"] -UID "PasswordPolicyAudit-Domain-MimimumLength"
+
+    # Check if Domain Joined before running Domain Audit
+    $sysInfo = Get-CimInstance Win32_ComputerSystem
+    
+    if ($sysInfo.PartOfDomain) {
+        # Parse domain password policy
+        $domainPasswordPolicyRawOutput = net accounts /domain | Where-Object { $_ -match ":" }
+
+        $domainPasswordPolicy = @{}
+        foreach ($line in $domainPasswordPolicyRawOutput) {
+            # Split by the colon and trim whitespace
+            $name, $value = $line -split ':', 2
+            $domainPasswordPolicy[$name.Trim()] = $value.Trim()
+        }
+
+        $domainCheckResult = if ($domainPasswordPolicy["Minimum password length"] -ge 8) { "Pass" } else { "Fail" }
+
+        Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails $domainPasswordPolicy["Minimum password length"] -UID "PasswordPolicyAudit-Domain-MimimumLength"
+    } else {
+        $domainCheckResult = "Info"
+
+        Send-Action1Data -auditName "Domain Password Policy Audit" -checkName "Minimum Password Length" -checkResult $domainCheckResult -resultDetails "Not Domain Joined" -UID "PasswordPolicyAudit-Domain-MimimumLength"
+    }
 }
 
 # Check for Local Administrator Accounts
 function Get-LocalAdminAccounts {
-    # Get local administrator accounts
-    $localAdmins = Get-LocalGroupMember -Group "Administrators" | Select-Object Name
+    try {
+        # Using WMI/CIM is more robust than Get-LocalGroupMember for unresolved SIDs
+        $group = Get-CimInstance -ClassName Win32_Group -Filter "Name='Administrators' AND LocalAccount=True"
+        $query = "Associators of {Win32_Group.Domain='$($group.Domain)',Name='$($group.Name)'} Where AssocClass=Win32_GroupUser Role=GroupComponent ResultClass=Win32_UserAccount"
+        $localAdmins = Get-CimInstance -Query $query -ErrorAction SilentlyContinue
 
-    [String]$adminAccouts = ""
-
-    for ($i = 0; $i -lt $localAdmins.Count; $i++) {
-        $adminAccouts += $localAdmins[$i].Name
-        if ($i -lt $localAdmins.Count - 1) {
-            $adminAccouts += ", "
+        if (-not $localAdmins) {
+            # Fallback for systems where the query returns null but members exist
+            $localAdmins = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
         }
+
+        [String]$adminAccounts = ""
+        $adminList = @()
+
+        if ($localAdmins) {
+            foreach ($admin in $localAdmins) {
+                $adminList += $admin.Name
+            }
+            $adminAccounts = $adminList -join ", "
+        }
+
+        $checkResult = if($adminList.Count -gt 0) { "Info" } else { "Pass" }
+
+    } catch {
+        $checkResult = "Info"
+        $adminAccounts = "Error retrieving admin list: $($_.Exception.Message)"
     }
 
-    $checkResult = if($localAdmins.Count -gt 0) { "Info" } else { "Pass" }
-
     # Send results
-    Send-Action1Data -auditName "Local Administrator Accounts Audit" -checkName "Local Administrators" -checkResult $checkResult -resultDetails $adminAccouts -UID "LocalAdminAccountsAudit-AdminsList"
+    Send-Action1Data -auditName "Local Administrator Accounts Audit" -checkName "Local Administrators" -checkResult $checkResult -resultDetails $adminAccounts -UID "LocalAdminAccountsAudit-AdminsList"
 }
 
 # Check for Antivirus
