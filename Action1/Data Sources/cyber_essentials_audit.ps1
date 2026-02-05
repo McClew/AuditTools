@@ -168,6 +168,44 @@ function Get-AntivirusStatus {
     Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
 }
 
+# Check for Full Disk Encryption (BitLocker)
+function Get-FullDiskEncryptionStatus {
+    $bitLockerStatus = Get-BitLockerVolume -ErrorAction SilentlyContinue
+
+    if ($bitLockerStatus) {
+        foreach ($volume in $bitLockerStatus) {
+            $encryptionStatus = switch ($volume.ProtectionStatus) {
+                0 { "Unprotected" }
+                1 { "Protected" }
+                2 { "Unknown" }
+                default { "Other" }
+            }
+
+            $checkResult = if ($volume.ProtectionStatus -eq 1) { "Pass" } else { "Fail" }
+
+            # Send results
+            Send-Action1Data -auditName "Full Disk Encryption Audit" -checkName "BitLocker" -checkResult $checkResult -resultDetails "Volume $($volume.MountPoint): $encryptionStatus" -UID "FullDiskEncryptionAudit-BitLocker-$($volume.MountPoint)"
+        }
+    } else {
+        Send-Action1Data -auditName "Full Disk Encryption Audit" -checkName "BitLocker Status" -checkResult "Info" -resultDetails "Unable to retrieve BitLocker status" -UID "FullDiskEncryptionAudit-BitLocker"
+    }
+}
+
+# Check OS is supported
+function Get-OSVersion {
+    $osInfo = Get-CimInstance Win32_OperatingSystem
+    $osCaption = $osInfo.Caption
+    $osVersion = $osInfo.Version
+
+    # Define supported OS versions (example: Windows 10 and above)
+    $supportedOS = @("Windows 10", "Windows 11", "Windows Server 2016", "Windows Server 2019", "Windows Server 2022")
+
+    $checkResult = if ($supportedOS | Where-Object { $osCaption -like "*$_*" }) { "Pass" } else { "Fail" }
+
+    # Send results
+    Send-Action1Data -auditName "OS Version Audit" -checkName "OS Supported" -checkResult $checkResult -resultDetails "$osCaption (Version: $osVersion)" -UID "OSVersionAudit"
+}
+
 # Action1 Data Source Integration
 function Send-Action1Data {
     param (
@@ -213,3 +251,5 @@ Get-FirewallStatus
 Get-PasswordPolicy
 Get-LocalAdminAccounts
 Get-AntivirusStatus
+Get-FullDiskEncryptionStatus
+Get-OSVersion
