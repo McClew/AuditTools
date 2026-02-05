@@ -27,11 +27,27 @@ Connect-MgGraph -Scopes "Policy.Read.All", "User.Read.All" -NoWelcome
 $UserUPN = "$lastUserName@lucidgrp.co.uk"
 $Uri = "https://graph.microsoft.com/beta/users/$UserUPN/authentication/requirements"
 
+# Check legacy per-user MFA status
 try {
     $mfaStatus = Invoke-MgGraphRequest -Method GET -Uri $Uri
     Write-Host "Per-User MFA State for $UserUPN is: $($mfaStatus.perUserMfaState)" -ForegroundColor Cyan
 } catch {
     Write-Host "Could not retrieve status. User likely has the default 'Disabled' state."
+}
+
+# Check for registered MFA methods
+try {
+    # Get all registered auth methods except just a plain password
+    $methods = Get-MgUserAuthenticationMethod -UserId $UserUPN | Where-Object { $_.AdditionalProperties["@odata.type"] -ne "#microsoft.graph.passwordAuthenticationMethod" }
+    
+    if ($methods) {
+        $mfaCapable = $true
+        $methodTypes = $methods | ForEach-Object { $_.AdditionalProperties["@odata.type"].Replace("#microsoft.graph.", "") } -join ", "
+    } else {
+        $mfaCapable = $false
+    }
+} catch {
+    $mfaCapable = "Error"
 }
 
 # Clean up
