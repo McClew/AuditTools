@@ -52,6 +52,9 @@ function Get-FirewallStatus {
             if ($stateHex -like "*10??" -or $stateHex -like "*11??") {
                 $esetEnabled = $true
                 break
+            } else {
+                # If ESET Firewall is found but disabled - send result and continue to check Defender Firewall
+                Send-Action1Data -auditName "Firewall Audit" -checkName "ESET Firewall" -checkResult "Fail" -resultDetails "ESET Firewall is installed but not active" -UID "FirewallAudit-ESET"
             }
         }
     }
