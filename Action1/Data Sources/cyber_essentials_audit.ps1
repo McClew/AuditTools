@@ -154,7 +154,31 @@ function Get-LocalAdminAccounts {
 }
 
 # Check for Antivirus
+# - ESET Endpoint Security
+# - Windows Defender
 function Get-AntivirusStatus {
+    ## Check for ESET Endpoint Security
+    $esetProducts = Get-CimInstance -Namespace root/SecurityCenter2 -ClassName AntivirusProduct | Where-Object { $_.displayName -like "*ESET*" }
+    $esetEnabled = $false
+
+    if ($esetProducts) {
+        # ProductState is a bitmask. 266240 usually means "Enabled and Up to date"
+        # A more robust check is to convert the state to Hex
+        $HexState = "0x{0:x}" -f $esetProducts.productState
+        # Hex second byte '1' usually indicates enabled
+        $esetEnabled = if ($HexState -like "*1?00") { $true } else { $false }
+    }
+
+    if ($esetEnabled) {
+        # Send result
+        Send-Action1Data -auditName "Antivirus Status Audit" -checkName "ESET Endpoint Security" -checkResult "Pass" -resultDetails "ESET Endpoint Security Enabled" -UID "AntivirusAudit-ESET-Enabled"
+
+        return
+    } else {
+        # Send result for ESET not found or disabled and continue to check Defender
+        Send-Action1Data -auditName "Antivirus Status Audit" -checkName "ESET Endpoint Security" -checkResult "Fail" -resultDetails "ESET Endpoint Security Disabled" -UID "AntivirusAudit-ESET-Disabled"
+    }
+
     # Check Windows Defender status
     $antivirusOutput = Get-MpComputerStatus
 
@@ -164,8 +188,8 @@ function Get-AntivirusStatus {
     $defenderUpdatedCheckResult = if ($updated -eq "True") { "Pass" } else { "Fail" }
     
     # Send results
-    Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefenderEnabled"
-    Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefenderUpToDate"
+    Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Enabled" -checkResult $defenderEnabledCheckResult -resultDetails $antivirusOutput.AMServiceEnabled -UID "AntivirusAudit-WindowsDefender-Enabled"
+    Send-Action1Data -auditName "Antivirus Status Audit" -checkName "Windows Defender Up to Date" -checkResult $defenderUpdatedCheckResult -resultDetails $updated -UID "AntivirusAudit-WindowsDefender-UpToDate"
 }
 
 # Check for Full Disk Encryption (BitLocker)
