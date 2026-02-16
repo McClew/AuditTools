@@ -12,18 +12,18 @@ $machineAutoplayStatus = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Window
 # other values (145 or 0x91) mean autoplay is enabled for some drive types
 
 # Determine outputs
-if ($userAutoplayStatus.DisableAutoplay -eq 0) {
-    $userAutoplayCheckResult = "Pass"
-} else {
+if ($null -eq $userAutoplayStatus -or $userAutoplayStatus.DisableAutoplay -ne 1) {
     $userAutoplayCheckResult = "Fail"
+} else {
+    $userAutoplayCheckResult = "Pass"
 }
 
-if ($machineAutoplayStatus.NoDriveTypeAutoRun -eq 255) {
-    $machineAutoplayCheckResult = "Pass"
-} else {
+if ($null -eq $machineAutoplayStatus -or $machineAutoplayStatus.NoDriveTypeAutoRun -ne 255) {
     $machineAutoplayCheckResult = "Fail"
+} else {
+    $machineAutoplayCheckResult = "Pass"
 }
 
 # Apply findings to Action1 UDF
 $overallCheckResult = if ($userAutoplayCheckResult -eq "Pass" -and $machineAutoplayCheckResult -eq "Pass") { "Pass" } else { "Fail" }
-Action1-Set-CustomAttribute "Autoplay" $overallCheckResult;
+Action1-Set-CustomAttribute "Autoplay" "$overallCheckResult"

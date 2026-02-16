@@ -1,8 +1,34 @@
-# Get last user details
-$lastUserSID = Get-CimInstance -Class Win32_UserProfile -Filter "Special = False" | Sort-Object LastUseTime -Descending | Select-Object -First 1 | Select-Object -ExpandProperty SID
-$lastUserDomain = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Domain
-$lastUserName = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Name
-$lastUserCaption = "$lastUserDomain\$lastUserName"
+# Get the last user SID via CimInstance
+$lastUserProfile = Get-CimInstance -Class Win32_UserProfile -Filter "Special = False" | 
+    Sort-Object LastUseTime -Descending | Select-Object -First 1
+
+if ($null -eq $lastUserProfile) {
+    Write-Error "No valid user profile found."
+    exit
+}
+
+$lastUserSID = $lastUserProfile.SID
+
+# Azure AD Compatible Name Resolution
+try {
+    $objSID = New-Object System.Security.Principal.SecurityIdentifier($lastUserSID)
+    $lastUserCaption = $objSID.Translate([System.Security.Principal.NTAccount]).Value
+} catch {
+    $lastUserCaption = "Unknown/Cloud User"
+}
+
+Write-Host "Targeting User: $lastUserCaption ($lastUserSID)"
+
+# Handle the User Registry Hive (Load if not logged in)
+$hiveLoaded = $false
+if (-not (Test-Path "Registry::HKEY_USERS\$lastUserSID")) {
+    $ntuserDat = Join-Path $lastUserProfile.LocalPath "NTUSER.DAT"
+    if (Test-Path $ntuserDat) {
+        # Using 'reg load' to mount the offline registry file
+        & reg load "HKEY_USERS\$lastUserSID" "$ntuserDat" | Out-Null
+        $hiveLoaded = $true
+    }
+}
 
 # Output user
 Write-Host "Last user found: $lastUserCaption"
@@ -57,5 +83,14 @@ if ($null -eq $machineStatus -or $machineStatus.NoDriveTypeAutoRun -ne 255) {
     Write-Host " for all users (machine setting)"
 }
 
+# Cleanup Hive if loaded
+if ($hiveLoaded) {
+    # Ensure all file locks are released before unloading
+    [GC]::Collect()
+    [GC]::WaitForPendingFinalizers()
+    & reg unload "HKEY_USERS\$lastUserSID" | Out-Null
+    Write-Host "Unloaded user registry hive."
+}
+
 # Apply to Action1 UDF
-Action1-Set-CustomAttribute "Autoplay" "Pass";
+Action1-Set-CustomAttribute "Autoplay" "Pass"
