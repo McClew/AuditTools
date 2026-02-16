@@ -1,3 +1,5 @@
+$allowList = "admin", "administrator"
+
 try {
     $group = Get-CimInstance -ClassName Win32_Group -Filter "Name='Administrators' AND LocalAccount=True"
     $query = "Associators of {Win32_Group.Domain='$($group.Domain)',Name='$($group.Name)'} Where AssocClass=Win32_GroupUser Role=GroupComponent ResultClass=Win32_UserAccount"
@@ -13,8 +15,11 @@ try {
 
     if ($localAdmins) {
         foreach ($admin in $localAdmins) {
-            $adminList += $admin.Name
+            if ($allowList -contains $admin.Name.ToLower()) {
+                $adminList += $admin.Name
+            }
         }
+
         $adminAccounts = $adminList -join ", "
     }
 
