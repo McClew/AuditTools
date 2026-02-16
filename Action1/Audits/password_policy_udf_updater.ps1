@@ -34,5 +34,5 @@ if ($sysInfo.PartOfDomain) {
     $domainCheckResult = "Info"
 
     # Apply findings to Action1 UDF
-    Action1-Set-CustomAttribute "Password Policy" "$localCheckResult";
+    Action1-Set-CustomAttribute "Password Policy" "Info: Azure";
 }
