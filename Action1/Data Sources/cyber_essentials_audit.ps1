@@ -13,20 +13,20 @@ function Get-AutoplayStatus {
     # other values (145 or 0x91) mean autoplay is enabled for some drive types
 
     # Determine outputs
-    if ($userAutoplayStatus.DisableAutoplay -eq 0) {
-        $userAutoplayOutput = "Disabled"
-        $userAutoplayCheckResult = "Pass"
-    } else {
+    if ($null -eq $userAutoplayStatus -or $userAutoplayStatus.DisableAutoplay -ne 1) {
         $userAutoplayOutput = "Enabled"
         $userAutoplayCheckResult = "Fail"
+    } else {
+        $userAutoplayOutput = "Disabled"
+        $userAutoplayCheckResult = "Pass"
     }
 
-    if ($machineAutoplayStatus.NoDriveTypeAutoRun -eq 255) {
-        $machineAutoplayOutput = "Disabled"
-        $machineAutoplayCheckResult = "Pass"
-    } else {
+    if ($null -eq $machineAutoplayStatus -or $machineAutoplayStatus.NoDriveTypeAutoRun -ne 255) {
         $machineAutoplayOutput = "Enabled (for some drive types)"
         $machineAutoplayCheckResult = "Fail"
+    } else {
+        $machineAutoplayOutput = "Disabled"
+        $machineAutoplayCheckResult = "Pass"
     }
 
     # Send results

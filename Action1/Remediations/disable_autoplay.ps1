@@ -4,6 +4,10 @@ $lastUserDomain = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -e
 $lastUserName = Get-CimInstance -Class Win32_UserAccount | Where-Object SID -eq $lastUserSID | Select-Object -ExpandProperty Name
 $lastUserCaption = "$lastUserDomain\$lastUserName"
 
+# Output user
+Write-Host "Last user found: $lastUserCaption"
+Write-Host "SID found: $lastUserSID"
+
 # Registry paths for user and machine autoplay settings
 $userRegBase = "Registry::HKEY_USERS\$lastUserSID"
 $userAutoplayPath = "$userRegBase\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers"
@@ -26,6 +30,7 @@ if ($null -eq $userStatus -or $userStatus.DisableAutoplay -ne 1) {
 } else {
     Write-Host "Autoplay is already " -NoNewline;
     Write-Host "Disabled" -ForegroundColor Green
+    Write-Host " for user $lastUserCaption"
 }
 
 # Registry path for machine autoplay settings
@@ -49,6 +54,7 @@ if ($null -eq $machineStatus -or $machineStatus.NoDriveTypeAutoRun -ne 255) {
 } else {
     Write-Host "Autoplay is already " -NoNewline;
     Write-Host "Disabled" -ForegroundColor Green -NoNewline;
+    Write-Host " for all users (machine setting)"
 }
 
 # Apply to Action1 UDF
