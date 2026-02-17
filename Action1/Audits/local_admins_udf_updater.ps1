@@ -15,7 +15,7 @@ try {
 
     if ($localAdmins) {
         foreach ($admin in $localAdmins) {
-            if ($allowList -contains $admin.Name.ToLower()) {
+            if ($allowList -notcontains $admin.Name.ToLower()) {
                 $adminList += $admin.Name
             }
         }
