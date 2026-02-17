@@ -13,20 +13,24 @@ try {
     [String]$adminAccounts = ""
     $adminList = @()
 
+    $unwantedAdmin = $false
+
     if ($localAdmins) {
         foreach ($admin in $localAdmins) {
             if ($allowList -notcontains $admin.Name.ToLower()) {
                 $adminList += $admin.Name
+                $unwantedAdmin = $true
             }
+
+            $adminList += $admin.Name
         }
 
         $adminAccounts = $adminList -join ", "
     }
 
-    $checkResult = if($adminList.Count -gt 0) { "Fail: $adminList" } else { "Pass: $adminList" }
-
+    $checkResult = if($unwantedAdmin) { "Fail: $adminAccounts" } else { "Pass: $adminAccounts" }
 } catch {
-    $checkResult = "Info"
+    $checkResult = "Info: ERROR"
 }
 
 # Apply findings to Action1 UDF
