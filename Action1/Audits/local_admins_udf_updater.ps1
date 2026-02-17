@@ -23,7 +23,7 @@ try {
         $adminAccounts = $adminList -join ", "
     }
 
-    $checkResult = if($adminList.Count -gt 0) { "Fail" } else { "Pass" }
+    $checkResult = if($adminList.Count -gt 0) { "Fail: $adminList" } else { "Pass: $adminList" }
 
 } catch {
     $checkResult = "Info"
