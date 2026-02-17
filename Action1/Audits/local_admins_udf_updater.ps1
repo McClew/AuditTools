@@ -1,4 +1,4 @@
-$allowList = "admin", "administrator"
+$allowList = "admin", "administrator", "lucid"
 
 try {
     $group = Get-CimInstance -ClassName Win32_Group -Filter "Name='Administrators' AND LocalAccount=True"
