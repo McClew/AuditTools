@@ -1,4 +1,4 @@
-$allowList = "admin", "administrator", "lucid"
+$allowList = "lucid"
 
 try {
     $group = Get-CimInstance -ClassName Win32_Group -Filter "Name='Administrators' AND LocalAccount=True"
@@ -17,12 +17,26 @@ try {
 
     if ($localAdmins) {
         foreach ($admin in $localAdmins) {
-            if ($allowList -notcontains $admin.Name.ToLower()) {
-                $adminList += $admin.Name
-                $unwantedAdmin = $true
+            # Check if the account is enabled
+            $isEnabled = $false
+            
+            if ($admin.CimClass.CimClassName -eq "Win32_UserAccount") {
+                # CIM objects use 'Disabled' property
+                if ($admin.Disabled -eq $false) { $isEnabled = $true }
+            } else {
+                # Fallback objects need to be checked via Get-LocalUser
+                $userDetail = Get-LocalUser -Name $admin.Name -ErrorAction SilentlyContinue
+                if ($userDetail.Enabled) { $isEnabled = $true }
             }
 
-            $adminList += $admin.Name
+            # Process only if enabled
+            if ($isEnabled) {
+                if ($allowList -notcontains $admin.Name.ToLower()) {
+                    $unwantedAdmin = $true
+                }
+
+                $adminList += $admin.Name
+            }
         }
 
         $adminAccounts = $adminList -join ", "
