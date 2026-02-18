@@ -15,8 +15,6 @@ foreach ($member in $members) {
             Remove-LocalUser -Name $memberName -ErrorAction SilentlyContinue
         } else {
             Write-Host "Demoting user: $memberName"
-            # FIX: Use the SID string value directly. 
-            # This avoids the "LocalPrincipal" conversion error.
             Remove-LocalGroupMember -Group "Administrators" -Member $member.SID.Value -ErrorAction SilentlyContinue
         }
     }
