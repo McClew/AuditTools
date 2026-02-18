@@ -1,4 +1,4 @@
-$allowList = "admin", "administrator", "lucid"
+$allowList = "lucid"
 $deleteList # = "example", "test"
 # all other accounts are demoted
 
