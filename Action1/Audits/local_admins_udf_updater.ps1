@@ -1,50 +1,32 @@
-$allowList = "lucid"
+$allowList = @("lucid")
 
 try {
-    $group = Get-CimInstance -ClassName Win32_Group -Filter "Name='Administrators' AND LocalAccount=True"
-    $query = "Associators of {Win32_Group.Domain='$($group.Domain)',Name='$($group.Name)'} Where AssocClass=Win32_GroupUser Role=GroupComponent ResultClass=Win32_UserAccount"
-    $localAdmins = Get-CimInstance -Query $query -ErrorAction SilentlyContinue
-
-    if (-not $localAdmins) {
-        # Fallback for systems where the query returns null but members exist
-        $localAdmins = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
-    }
-
-    [String]$adminAccounts = ""
+    # Using Get-LocalGroupMember for consistency across the script
+    $currentAdmins = Get-LocalGroupMember -Group "Administrators" -ErrorAction SilentlyContinue
+    
     $adminList = @()
-
     $unwantedAdmin = $false
 
-    if ($localAdmins) {
-        foreach ($admin in $localAdmins) {
-            # Check if the account is enabled
-            $isEnabled = $false
-            
-            if ($admin.CimClass.CimClassName -eq "Win32_UserAccount") {
-                # CIM objects use 'Disabled' property
-                if ($admin.Disabled -eq $false) { $isEnabled = $true }
-            } else {
-                # Fallback objects need to be checked via Get-LocalUser
-                $userDetail = Get-LocalUser -Name $admin.Name -ErrorAction SilentlyContinue
-                if ($userDetail.Enabled) { $isEnabled = $true }
+    foreach ($admin in $currentAdmins) {
+        $nameOnly = $admin.Name -split '\\' | Select-Object -Last 1
+        
+        # Check if the account is enabled before flagging
+        $userDetail = Get-LocalUser -Name $nameOnly -ErrorAction SilentlyContinue
+        
+        # Only process if user exists and is enabled
+        if ($userDetail -and $userDetail.Enabled) {
+            if ($allowList -notcontains $nameOnly.ToLower()) {
+                $unwantedAdmin = $true
             }
-
-            # Process only if enabled
-            if ($isEnabled) {
-                if ($allowList -notcontains $admin.Name.ToLower()) {
-                    $unwantedAdmin = $true
-                }
-
-                $adminList += $admin.Name
-            }
+            $adminList += $nameOnly
         }
-
-        $adminAccounts = $adminList -join ", "
     }
 
+    $adminAccounts = $adminList -join ", "
     $checkResult = if($unwantedAdmin) { "Fail: $adminAccounts" } else { "Pass: $adminAccounts" }
+
 } catch {
-    $checkResult = "Info: ERROR"
+    $checkResult = "Info: ERROR $($_.Exception.Message)"
 }
 
 # Apply findings to Action1 UDF
