@@ -1,13 +1,17 @@
 # Get the SID of the last user logged in
 $lastUserSID = Get-CimInstance -Class Win32_UserProfile -Filter "Special = False" | Sort-Object LastUseTime -Descending | Select-Object -First 1 | Select-Object -ExpandProperty SID
 
-# Check user configuration
-# Registry paths for user and machine autoplay settings
-$userRegBase = "Registry::HKEY_USERS\$lastUserSID"
-$userAutoplayPath = "$userRegBase\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers"
+# Ensure HKU drive is mapped (standardizes access)
+if (-not (Get-PSDrive -Name HKU -ErrorAction SilentlyContinue)) {
+    New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS | Out-Null
+}
 
-# Ensure the key exists if not: create it, then check the current value
+# Define path using the new HKU drive
+$userAutoplayPath = "HKU:\$lastUserSID\Software\Microsoft\Windows\CurrentVersion\Explorer\AutoplayHandlers"
+
+# Ensure the key exists
 if (-not (Test-Path $userAutoplayPath)) {
+    # Creating the path item by item or using -Force to build the tree
     New-Item -Path $userAutoplayPath -Force | Out-Null
     Write-Host "Created registry key for user autoplay settings at $userAutoplayPath"
 }
