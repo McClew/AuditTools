@@ -1,4 +1,4 @@
-$allowList = @("lucid")
+$allowList = @("lucid", "bondgate", "admin", "SDDE", "lapsadmin")
 
 try {
     # Using Get-LocalGroupMember for consistency across the script
